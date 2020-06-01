@@ -95,6 +95,11 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 			Partitions: user.PolicyPartitions{Quota: true},
 			IsInactive: true,
 		},
+		"unlimited-quota": {
+			Partitions:   user.PolicyPartitions{Quota: true},
+			AccessRights: map[string]user.AccessDefinition{"a": {}},
+			QuotaMax:     -1,
+		},
 		"quota1": {
 			Partitions: user.PolicyPartitions{Quota: true},
 			QuotaMax:   2,
@@ -112,6 +117,11 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 			QuotaMax:     3,
 			AccessRights: map[string]user.AccessDefinition{"b": {}},
 			Partitions:   user.PolicyPartitions{Quota: true},
+		},
+		"unlimited-rate": {
+			Partitions:   user.PolicyPartitions{RateLimit: true},
+			AccessRights: map[string]user.AccessDefinition{"a": {}},
+			Rate:         -1,
 		},
 		"rate1": {
 			Partitions: user.PolicyPartitions{RateLimit: true},
@@ -136,6 +146,19 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 		},
 		"acl3": {
 			AccessRights: map[string]user.AccessDefinition{"c": {}},
+		},
+		"unlimitedComplexity": {
+			Partitions:    user.PolicyPartitions{Complexity: true},
+			AccessRights:  map[string]user.AccessDefinition{"a": {}},
+			MaxQueryDepth: -1,
+		},
+		"complexity1": {
+			Partitions:    user.PolicyPartitions{Complexity: true},
+			MaxQueryDepth: 2,
+		},
+		"complexity2": {
+			Partitions:    user.PolicyPartitions{Complexity: true},
+			MaxQueryDepth: 3,
 		},
 		"per_api_and_partitions": {
 			ID: "per_api_and_partitions",
@@ -364,6 +387,14 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 			},
 		},
 		{
+			"QuotaPart with unlimited", []string{"unlimited-quota"},
+			"", func(t *testing.T, s *user.SessionState) {
+				if s.QuotaMax != -1 {
+					t.Fatalf("want unlimited quota to be -1")
+				}
+			}, nil,
+		},
+		{
 			"QuotaPart", []string{"quota1"},
 			"", func(t *testing.T, s *user.SessionState) {
 				if s.QuotaMax != 2 {
@@ -400,6 +431,14 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 			}, nil,
 		},
 		{
+			"RatePart with unlimited", []string{"unlimited-rate"},
+			"", func(t *testing.T, s *user.SessionState) {
+				if s.Rate != -1 {
+					t.Fatalf("want unlimited rate to be -1")
+				}
+			}, nil,
+		},
+		{
 			"RatePart", []string{"rate1"},
 			"", func(t *testing.T, s *user.SessionState) {
 				if s.Rate != 3 {
@@ -411,6 +450,30 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 			"RateParts", []string{"rate1", "rate2"},
 			"", func(t *testing.T, s *user.SessionState) {
 				if s.Rate != 4 {
+					t.Fatalf("Should pick bigger value")
+				}
+			}, nil,
+		},
+		{
+			"ComplexityPart with unlimited", []string{"unlimitedComplexity"},
+			"", func(t *testing.T, s *user.SessionState) {
+				if s.MaxQueryDepth != -1 {
+					t.Fatalf("unlimitied query depth should be -1")
+				}
+			}, nil,
+		},
+		{
+			"ComplexityPart", []string{"complexity1"},
+			"", func(t *testing.T, s *user.SessionState) {
+				if s.MaxQueryDepth != 2 {
+					t.Fatalf("want MaxQueryDepth to be 2")
+				}
+			}, nil,
+		},
+		{
+			"ComplexityParts", []string{"complexity1", "complexity2"},
+			"", func(t *testing.T, s *user.SessionState) {
+				if s.MaxQueryDepth != 3 {
 					t.Fatalf("Should pick bigger value")
 				}
 			}, nil,
@@ -468,7 +531,7 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 							Rate:             20,
 							Per:              1,
 						},
-						AllowanceScope: "per_api_and_no_other_partitions",
+						AllowanceScope: "d",
 					},
 					"c": {
 						Limit: &user.APILimit{
@@ -476,7 +539,7 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 							Rate:     2000,
 							Per:      60,
 						},
-						AllowanceScope: "per_api_and_no_other_partitions",
+						AllowanceScope: "c",
 					},
 				}
 
@@ -509,7 +572,7 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 							Rate:     300,
 							Per:      1,
 						},
-						AllowanceScope: "e",
+						AllowanceScope: "per_api_with_limit_set_from_policy",
 					},
 					"d": {
 						Limit: &user.APILimit{
@@ -518,7 +581,7 @@ func testPrepareApplyPolicies() (*BaseMiddleware, []testApplyPoliciesData) {
 							Rate:             200,
 							Per:              10,
 						},
-						AllowanceScope: "per_api_with_limit_set_from_policy",
+						AllowanceScope: "d",
 					},
 				}
 
